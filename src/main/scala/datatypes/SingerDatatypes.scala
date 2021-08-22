@@ -8,11 +8,7 @@ object SingerDatatypes {
 
     // INPUT datatypes
     case class SingerState (
-        bookmarks: SingerBookmarks
-    )
-
-    case class SingerBookmarks (
-        graph_traversal: Array[Array[Int]]
+        graph_traversal: Vector[Vector[Int]]
     )
 
     case class SingerConfig (
@@ -21,7 +17,7 @@ object SingerDatatypes {
     )
 
     case class SingerCatalog (
-        streams: Array[SingerStream],
+        streams: Vector[SingerStream]
     )
 
     case class SingerStream (
@@ -66,7 +62,7 @@ object SingerDatatypes {
 
     case class SingerStateMessage (
         `type`: String,
-        value: SingerBookmarks
+        value: SingerState
     ) extends SingerMessageTrait
 
 }

@@ -2,9 +2,10 @@
 *.log
 
 //IDE stuff
-.metals*
-.bsp*
 .bloop
+.bsp*
+.metals*
+project/metals.sbt
 
 //Windows stuff
 *~
@@ -16,6 +17,7 @@ lib_managed/
 src_managed/
 project/boot/
 project/target/
+project/project/
 project/plugins/project/
 .history
 .cache
@@ -24,3 +26,6 @@ project/plugins/project/
 ### Scala ###
 *.class
 *.log
+
+// ??
+null/

@@ -13,7 +13,7 @@ scalaVersion := "2.13.6"
 
 // It's possible to define many kinds of settings, such as:
 
-name := "scala-sandbox"
+name := "tapgithubfollowing"
 organization := "com.fow5040"
 version := "1.0"
 
@@ -30,8 +30,16 @@ libraryDependencies ++= Seq(
 ).map(_ % circeVersion)
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.1" % "test"
-libraryDependencies += "com.47deg" %% "github4s" % "0.28.5"
+libraryDependencies += "com.47deg" %% "github4s" % "0.29.1"
 libraryDependencies += "com.github.scopt" %% "scopt" % "4.0.1"
+
+val http4sVersion = "0.23.0"
+libraryDependencies ++= Seq(
+  "org.http4s" %% "http4s-dsl" % http4sVersion,
+  "org.http4s" %% "http4s-client" % http4sVersion,
+  "org.http4s" %% "http4s-blaze-server" % http4sVersion,
+  "org.http4s" %% "http4s-blaze-client" % http4sVersion
+)
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the scala-parser-combinators dependency to the set of dependencies
