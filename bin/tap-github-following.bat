@@ -1,0 +1,1 @@
+java -jar .\target\scala-2.13\tapgithubfollowing-assembly-1.0.jar %*
