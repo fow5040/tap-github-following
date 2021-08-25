@@ -32,7 +32,7 @@ object SingerDatatypes {
 
     case class SingerRecord (
         username : String,
-        user_id: Int,
+        user_id: Long,
         degree_of_removal: Int
     )
 

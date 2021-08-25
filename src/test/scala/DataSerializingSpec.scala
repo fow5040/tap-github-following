@@ -5,7 +5,7 @@ import cats.syntax.show._
 import com.fow5040.tapgithubfollowing.SingerDatatypes._
 import shapeless.record
 
-class DataSerializing extends FlatSpec {
+class DataSerializingSpec extends FlatSpec {
 
     val recordMessageString = """
     {

@@ -26,7 +26,25 @@ class StateLogicSpec extends FlatSpec {
         assert(nextState == expectedState)
     }
 
-    it should "handle state change with overflow" in {
+    it should "handle a basic state change with overflow" in {
+        // [0,1][10,11] => [1,1][11,11]
+        val initialState = SingerState(Vector(Vector(0,1), Vector(10,11)))
+        val expectedState = SingerState(Vector(Vector(1,1), Vector(11,11)))
+        val nextState = incrementState(initialState)
+            
+        assert(nextState == expectedState)
+    }
+
+    it should "handle a state change where a user doesn't follow anyone" in {
+        // [0,1][5,11][0,0] => [1,1][6,11][0,0]
+        val initialState = SingerState(Vector(Vector(0,1), Vector(5,11), Vector(0,0)))
+        val expectedState = SingerState(Vector(Vector(0,1), Vector(6,11), Vector(0,0)))
+        val nextState = incrementState(initialState)
+            
+        assert(nextState == expectedState)
+    }
+
+    it should "handle a long state change with overflow" in {
         // [0,1][8,9][11,12] => [1,1][9,9][12,12]
         val initialState = SingerState(Vector(Vector(0,1), Vector(8,9), Vector(11,12)))
         val expectedState = SingerState(Vector(Vector(1,1), Vector(9,9), Vector(12,12)))
@@ -44,6 +62,22 @@ class StateLogicSpec extends FlatSpec {
         assert (!isOverflowed(stateOverflowed.graph_traversal))
     }
 
+    "The overflow handler" should "return the next set of indices to get" in {
+        // [[1,1][11,11]] => [[0],[0,0]]
+        val initialState = SingerState(Vector(Vector(1,1), Vector(11,11)))
+        val expectedRequestVector = Vector(Vector(0),Vector(0,0))
+        val actualRequestVector = overflowedStateToRequestIndices(initialState)
+        assert (expectedRequestVector == actualRequestVector)
+    }
+
+    it should "return the next set of indices to get (nested)" in {
+        // [[0,1][6,11][5,5][7,7]] => [[0,6],[0,6,0]]
+        val initialState = SingerState(Vector(Vector(0,1), Vector(6,11), Vector(5,5), Vector(7,7)))
+        val expectedRequestVector = Vector(Vector(0,6),Vector(0,6,0))
+        val actualRequestVector = overflowedStateToRequestIndices(initialState)
+        assert (expectedRequestVector == actualRequestVector)
+    }
+       
     "The state upticker" should "handle a basic uptick" in {
         // [1,1][11,11] => [0,1][0,11][0,100]
         val initialState = SingerState(Vector(Vector(1,1), Vector(11,11)))

@@ -15,8 +15,9 @@ import cats.effect.unsafe.implicits.global
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-object TapGithubFollowing {
 
+object TapGithubFollowing {
+    
   def main(args : Array[String]){
 
     // TODO: Create static log file output or allow user to provide one in run options
@@ -68,16 +69,45 @@ object TapGithubFollowing {
   }
 
   def doReplication(config: SingerConfig, initialState: SingerState){
-    // if state is 0
-    // Get user >> emit messages
 
+    val httpClient: Client[IO] = JavaNetClientBuilder[IO].create
+    val githubClient = Github[IO](httpClient, Option(config.access_token))
 
-    //emitNextUserMessages([[1,1][0,length of following]])
-    //  add each user if not in higher list
-    //  increment state
-    //  send state message
-    //  emitNextUserMessages(newState)
+    val maxIterations = 15;
+    var iteration = 0;
+    var newState = initialState
 
+    while( true ){
+      val removal_degs = newState.graph_traversal.length
+      val graph_nodes = newState.graph_traversal.map( _.head )
+
+      // Only replicate if not overflowed - i.e. user must follow other users
+      // i.e. State = [[0,1][2,5][0,0]]
+      if(!isOverflowed(newState.graph_traversal)){
+        val userList = memoized_requestUserList(graph_nodes, githubClient, config)
+        userList.foreach( u => {
+          //TODO: Implement the 'not in higher' list logic
+          val singerRecord = SingerRecord(u.login, u.id, removal_degs)
+          val output = SingerRecordMessage("RECORD","github_following",singerRecord)
+          println(output.asJson.spaces2)
+        })
+      }
+
+      newState = incrementState(newState)
+      if(isOverflowed(newState.graph_traversal)){
+        val nextSizes = memoized_requestNextStateVectorSizes(newState, githubClient, config)
+        newState = uptickState(newState, nextSizes)
+      }
+
+      
+      // FOR TESTING:
+      iteration += 1
+      if(iteration >= maxIterations) sys.exit(0);
+      //////////////
+
+      val output = SingerStateMessage("STATE",newState)
+      println(output.asJson.spaces2)
+    }
 
   }
 
@@ -90,12 +120,66 @@ object TapGithubFollowing {
     * 
     * For Example: Starting user's followed users = f([0])
     * Starting user's first followed user's, followed users = f([0,0])
-    *
-    * @param graph_traversal
+    * 
+    * @param graph_nodes
+    * @param gc
+    * @param config
     * @return
     */
-  def requestUserList( graph_traversal : Vector[Int] ) : List[User] = {
-    return List[User]()
+  def requestUserList( graph_nodes : Vector[Int], gc: Github[IO], config: SingerConfig) : List[User] = {
+   if (graph_nodes.length == 1){
+      return doUserRequest(gc, config.starting_user)
+    } else{
+      val indToGet = graph_nodes.last
+      val higherList = requestUserList(graph_nodes.dropRight(1), gc, config)
+      return doUserRequest(gc, higherList(indToGet).login)
+    }
+  }
+
+  /** Gets a list of followed users, given a username
+    *
+    * @param gc
+    * @param username
+    * @return
+    */
+  def doUserRequest( gc: Github[IO], username: String) : List[User] = {
+    val usersRequest = gc.users.getFollowing(username).unsafeToFuture()
+    val maybeUsersResult = Await.result(usersRequest, 10.seconds);
+    maybeUsersResult.result match {
+      case Left(error) => {System.err.println(error); sys.exit(1)}
+      case Right(users) => {return users}
+    }
+  }
+ 
+  /** Same as requestUserList, but memoized
+    * 
+    * will use alot of memory
+    */
+  def memoized_requestUserList( graph_nodes : Vector[Int], gc: Github[IO], config : SingerConfig ) : List[User] = {
+    if (graph_nodes.length == 1){
+      return memoized_doUserRequest(gc, config.starting_user)
+    } else{
+      val indToGet = graph_nodes.last
+      val higherList = memoized_requestUserList(graph_nodes.dropRight(1), gc, config)
+      return memoized_doUserRequest(gc, higherList(indToGet).login)
+    }
+  }
+
+
+  /** Same as requestUserList, but memoized
+    * 
+    * will use alot of memory
+    */
+  def memoized_doUserRequest: ( Github[IO], String ) => List[User] = {
+
+    val requestCache = collection.mutable.Map.empty[String, List[User]]
+
+    ( gc: Github[IO], username: String) => 
+      requestCache.getOrElse(username, {
+        val userList = doUserRequest(gc, username)
+        requestCache.update(username, userList)
+        requestCache(username)
+      })
   }
 
   /** Returns a vector of sizes needed to return a new upticked state
@@ -106,9 +190,13 @@ object TapGithubFollowing {
     * @param state
     * @return
     */
-  def requestNextStateVectorSizes( state : SingerState ) : Vector[Int] = {
-    return Vector(0)
+  def memoized_requestNextStateVectorSizes( state : SingerState, gc : Github[IO], config : SingerConfig) : Vector[Int] = {
+    // [[1,1][11,11]] => [get([0]).length, get([0,0]).length]
+    // [[0,1][6,11][5,5][7,7]] => [get([0,6]).length, get([0,6,0]).length]
+
+    return overflowedStateToRequestIndices(state).map( vec => memoized_requestUserList(vec,gc,config).length)
   }
+
 
 
 
@@ -135,12 +223,13 @@ object TapGithubFollowing {
       // case where we get [[0,1]]
       if (gt.length == 1) return Vector(Vector(1,1))
 
-      // increment the last vector
       val lastVec = gt.last
       val lastInd = gt.length-1
-      val newLastVec = lastVec.updated(0, lastVec.head + 1)
+      // increment the last vector if not already overflowed
+      val newLastVec = if (!isOverflowed(gt)) lastVec.updated(0, lastVec.head + 1) else lastVec
+
       val newgt = gt.updated(lastInd, newLastVec)
-      // if it's not overflowed, great
+      // if it's still not overflowed, great
       if (!isOverflowed(newgt)) return newgt
 
       // otherwise recursively overflow left
@@ -150,6 +239,46 @@ object TapGithubFollowing {
     val graph_traversal = state.graph_traversal
     val new_graph_traversal = incrementTraversal(graph_traversal)
     return SingerState( new_graph_traversal )
+  }
+
+  /** Given a state with overflowed vectors, return a vector of next indices to request
+    *
+    * @param state
+    * @return
+    */
+  def overflowedStateToRequestIndices ( state : SingerState) : Vector[Vector[Int]] = {
+    /** EXAMPLES
+      * 
+      * [[1,1][11,11]] => [[0],[0,0]]
+      * [[0,1][6,11][5,5][7,7]] => [[0,6],[0,6,0]]
+      * 
+      */
+
+    //ex. [[0,1][6,11][5,5][7,7]]
+    val gt = state.graph_traversal
+    val indices = 1 to gt.length
+    val subGts = indices.map(ind => gt.take(ind))
+   
+    /** ex. [
+     *       [[0,1]],
+     *       [[0,1][6,11]],
+     *       [[0,1][6,11][5,5]],
+     *       [[0,1][6,11][5,5][7,7]]
+     *      ]
+     * 
+     *
+     */
+    val requestIndices = subGts.filter(isOverflowed)
+                               .toVector
+                               .map( this_gt => 
+                                     this_gt.map( vec => 
+                                                  if (vec.head == vec.last) 0
+                                                  else vec.head
+                                    )) 
+                       
+    // edge case for full overflow -> if full overflow, then return full zero vector.
+    if (requestIndices.length == gt.length) return requestIndices
+    else return requestIndices.map(v => v.init)
   }
 
   /** Given a state with overflowed vectors, and a vector of sizes for the next
