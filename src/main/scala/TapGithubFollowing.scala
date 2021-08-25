@@ -84,9 +84,13 @@ object TapGithubFollowing {
       // Only replicate if not overflowed - i.e. user must follow other users
       // i.e. State = [[0,1][2,5][0,0]]
       if(!isOverflowed(newState.graph_traversal)){
+
+        //TODO: Implement the 'not in higher' list logic and 'get current user id' logic
+        //      Only request the user list if the current user is not in a higher tier
         val userList = memoized_requestUserList(graph_nodes, githubClient, config)
         userList.foreach( u => {
           //TODO: Implement the 'not in higher' list logic
+          //      Only write message if the user is not in a higher tier
           val singerRecord = SingerRecord(u.login, u.id, removal_degs)
           val output = SingerRecordMessage("RECORD","github_following",singerRecord)
           println(output.asJson.spaces2)
