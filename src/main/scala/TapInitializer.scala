@@ -5,6 +5,7 @@ import io.circe.{ Decoder, DecodingFailure, Encoder, Json }
 import scopt.OParser
 import SingerDatatypes.SingerConfig
 import SingerDatatypes.SingerState
+import SingerDatatypes.SingerStateMessage
 
 object TapInitializer {
 

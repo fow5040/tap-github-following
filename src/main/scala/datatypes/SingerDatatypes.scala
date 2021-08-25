@@ -13,7 +13,8 @@ object SingerDatatypes {
 
     case class SingerConfig (
         access_token: String,
-        starting_user: String
+        starting_user: String,
+        max_lists_to_get: Int = -1
     )
 
     case class SingerCatalog (
@@ -51,7 +52,7 @@ object SingerDatatypes {
         `type`: String,
         stream: String,
         schema: SingerSchema,
-        key_properties: Array[String]
+        key_properties: Vector[String]
     ) extends SingerMessageTrait
 
     case class SingerRecordMessage(

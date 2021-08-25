@@ -23,7 +23,7 @@ object TapGithubFollowing {
     // TODO: Create static log file output or allow user to provide one in run options
     val opts = TapInitializer.generateSingerConfig(args)
     val config : SingerConfig = TapInitializer.openConfigFile(opts.configFile)
-    // If no state file is provided, assume intial state of [[0]]
+    // If no state file is provided, assume intial state of [[0,1]]
     val initialState : SingerState = if (opts.stateFile != ".") TapInitializer.openStateFile(opts.stateFile)
                                      else SingerState(Vector(Vector(0,1)))
     
@@ -73,11 +73,45 @@ object TapGithubFollowing {
     val httpClient: Client[IO] = JavaNetClientBuilder[IO].create
     val githubClient = Github[IO](httpClient, Option(config.access_token))
 
-    val maxIterations = 15;
-    var iteration = 0;
     var newState = initialState
 
+    // Always Output Schema message before record messages
+    val schemaMessage = SingerSchemaMessage(
+                              `type` = "SCHEMA",
+                              stream = "github_following",
+                              schema = SingerSchema(Map(
+                                "username" -> Map(
+                                  "type" -> "string",
+                                ),
+                                "user_id" -> Map(
+                                  "type" -> "integer",
+                                ),
+                                "degree_of_removal" -> Map(
+                                  "type" -> "integer"
+                                )
+                              )),
+                              key_properties = Vector("user_id", "degree_of_removal")
+                            )
+
+    println(schemaMessage.asJson.noSpaces)
+
+    // Output startingUser if initial state is a fresh state, i.e. [[0,1]]
+    if(initialState.graph_traversal.length == 1){
+      var u = doSingleUserRequest(githubClient, config.starting_user)
+      var singerRecord = SingerRecord(u.login, u.id, 0)
+      var output = SingerRecordMessage("RECORD","github_following",singerRecord)
+      println(output.asJson.noSpaces)
+    }
+
+    var listsGotten = 0
+
     while( true ){
+
+      //If max_lists_to_get was provided, quit if we've gotten more than that many lists
+      if (config.max_lists_to_get >= 0 && listsGotten >= config.max_lists_to_get) {
+        sys.exit(0)
+      }
+
       val removal_degs = newState.graph_traversal.length
       val graph_nodes = newState.graph_traversal.map( _.head )
 
@@ -88,12 +122,13 @@ object TapGithubFollowing {
         //TODO: Implement the 'not in higher' list logic and 'get current user id' logic
         //      Only request the user list if the current user is not in a higher tier
         val userList = memoized_requestUserList(graph_nodes, githubClient, config)
+        listsGotten += 1
         userList.foreach( u => {
           //TODO: Implement the 'not in higher' list logic
           //      Only write message if the user is not in a higher tier
-          val singerRecord = SingerRecord(u.login, u.id, removal_degs)
-          val output = SingerRecordMessage("RECORD","github_following",singerRecord)
-          println(output.asJson.spaces2)
+          var singerRecord = SingerRecord(u.login, u.id, removal_degs)
+          var output = SingerRecordMessage("RECORD","github_following",singerRecord)
+          println(output.asJson.noSpaces)
         })
       }
 
@@ -103,14 +138,8 @@ object TapGithubFollowing {
         newState = uptickState(newState, nextSizes)
       }
 
-      
-      // FOR TESTING:
-      iteration += 1
-      if(iteration >= maxIterations) sys.exit(0);
-      //////////////
-
       val output = SingerStateMessage("STATE",newState)
-      println(output.asJson.spaces2)
+      println(output.asJson.noSpaces)
     }
 
   }
@@ -119,6 +148,22 @@ object TapGithubFollowing {
 
 
   //** Side Effect Functions **//
+
+  /** Gets information for a single user
+    *   should only be used on initial replication
+    * @param gc
+    * @param username
+    * @return
+    */
+  def doSingleUserRequest( gc: Github[IO], username: String) : User = {
+    val userRequest = gc.users.get(username).unsafeToFuture()
+    val maybeUsersResult = Await.result(userRequest, 10.seconds);
+    maybeUsersResult.result match {
+      case Left(error) => {System.err.println(error); sys.exit(1)}
+      case Right(user) => {return user}
+    }
+  }
+
 
   /** Requests a list of followed users the given index vector
     * 
@@ -136,7 +181,7 @@ object TapGithubFollowing {
     } else{
       val indToGet = graph_nodes.last
       val higherList = requestUserList(graph_nodes.dropRight(1), gc, config)
-      return doUserRequest(gc, higherList(indToGet).login)
+      return if (higherList.length == 0 ) List[User]() else doUserRequest(gc, higherList(indToGet).login)
     }
   }
 
@@ -165,7 +210,7 @@ object TapGithubFollowing {
     } else{
       val indToGet = graph_nodes.last
       val higherList = memoized_requestUserList(graph_nodes.dropRight(1), gc, config)
-      return memoized_doUserRequest(gc, higherList(indToGet).login)
+      return if (higherList.length == 0 ) List[User]() else memoized_doUserRequest(gc, higherList(indToGet).login)
     }
   }
 
