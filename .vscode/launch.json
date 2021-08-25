@@ -7,9 +7,17 @@
         {
             "type": "scala",
             "request": "launch",
-            "name": "Launch Main Class",
+            "name": "Launch Discover",
             "mainClass": "com.fow5040.tapgithubfollowing.TapGithubFollowing",
             "args": ["--config", "config.json", "--discover"],
+            "jvmOptions": [],
+        },
+        {
+            "type": "scala",
+            "request": "launch",
+            "name": "Launch Initial",
+            "mainClass": "com.fow5040.tapgithubfollowing.TapGithubFollowing",
+            "args": ["--config", "config.json" ],
             "jvmOptions": [],
         }
     ]
