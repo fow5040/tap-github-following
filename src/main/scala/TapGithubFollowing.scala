@@ -97,9 +97,9 @@ object TapGithubFollowing {
 
     // Output startingUser if initial state is a fresh state, i.e. [[0,1]]
     if(initialState.graph_traversal.length == 1){
-      var u = doSingleUserRequest(githubClient, config.starting_user)
-      var singerRecord = SingerRecord(u.login, u.id, 0)
-      var output = SingerRecordMessage("RECORD","github_following",singerRecord)
+      val u = doSingleUserRequest(githubClient, config.starting_user)
+      val singerRecord = SingerRecord(u.login, u.id, 0)
+      val output = SingerRecordMessage("RECORD","github_following",singerRecord)
       println(output.asJson.noSpaces)
     }
 
@@ -126,8 +126,8 @@ object TapGithubFollowing {
         userList.foreach( u => {
           //TODO: Implement the 'not in higher' list logic
           //      Only write message if the user is not in a higher tier
-          var singerRecord = SingerRecord(u.login, u.id, removal_degs)
-          var output = SingerRecordMessage("RECORD","github_following",singerRecord)
+          val singerRecord = SingerRecord(u.login, u.id, removal_degs)
+          val output = SingerRecordMessage("RECORD","github_following",singerRecord)
           println(output.asJson.noSpaces)
         })
       }
